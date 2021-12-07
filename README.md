@@ -4,7 +4,7 @@ This repository contains code to reproduce all analyses and figures in Dablander
 This repository is structured as follows:
 
   - **Code/helpers.R**: Contains helper functions for the empirical analysis and the simulation study.
-  - **Code/setup-data.R**: Gets data from the WHO, estimates R(t), saves output into **Data/** (some files are too big for this repository).
+  - **Code/setup-data.R**: Gets data from the WHO, estimates R(t), saves output into **Data/** (one file is too big for this repository).
   - **Code/methodology.R**: Creates Figure 1 describing the methodology.
   - **Code/empirical-analysis.R**: Analyses the data and creates Table 1.
   - **Code/figures.R**: Creates Figure 2 & 3 showing the data and summarizing the empirical results.
