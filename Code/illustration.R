@@ -21,7 +21,7 @@ create_illustration <- function(
   bw = 50, ws = 50, ews = c('variance', 'autocorrelation'), xlab = 'Days', transition = TRUE,
   title = 'Second outbreak', ylab = 'Reported cases', ylab2 = expression(R[t]), ylab_ews = TRUE,
   colgray = 'gray76', logarithm = TRUE, total_ews = FALSE, ews_logarithm = FALSE,
-  backward_only = TRUE
+  backward_only = TRUE, cut_first_window = FALSE
   ) {
   
   set.seed(seed)
@@ -75,14 +75,39 @@ create_illustration <- function(
   }
   
   
+  shorten <- function(x) {
+    to_remove <- ws - 1
+    len <- length(x)
+    
+    # If there are enough data points left after
+    # removing the first rolling window, do it
+    # otherwise return a vector of NAs
+    if ((len - to_remove) >= 2) {
+      x[seq(to_remove)] <- NA
+      return(x)
+      
+    } else {
+      return(rep(NA, len))
+    }
+  }
+  
+  get_ews_short <- function(y, bw, ws, type, detrending = TRUE, backward_only = TRUE) {
+    x <- get_ews(y, bw, ws, type, detrending, backward_only)
+    
+    if (cut_first_window) {
+      return(lapply(x, shorten))
+    }
+    x
+  }
+  
   df_ews <- df_ews %>%
     summarize(
       index = seq(Rt_low[1], Rt_critical[1]),
-      variance = get_ews(
+      variance = get_ews_short(
         reports[index], bw = bw, ws = ws,
         type = 'uniform', backward_only = backward_only
       )[[ews[1]]],
-      autocorrelation = get_ews(
+      autocorrelation = get_ews_short(
         reports[index], bw = bw, ws = ws,
         type = 'uniform', backward_only = backward_only
       )[[ews[2]]]
@@ -197,7 +222,7 @@ combine_figures <- function(
   ews1_seq = seq(0, 400, 100), ews2_seq = seq(-1, 1, 0.50), ews_seq_step = 50,
   ews = c('variance', 'autocorrelation'), seed = 1, colgray = 'gray86',
   nr_addition = 150, nsims = 50, seq_step = 50, total_ews = FALSE,
-  ews_logarithm = FALSE, backward_only = TRUE
+  ews_logarithm = FALSE, backward_only = TRUE, cut_first_window = FALSE
   ) {
   
   margin <- theme(plot.margin = unit(c(0.25, 0.5, 0.2, 0.2), 'cm'))
@@ -211,7 +236,8 @@ combine_figures <- function(
     seed = seed, ews1_seq = ews1_seq, ews2_seq = ews2_seq, xlab = 'Days', ews = ews,
     colgray = colgray, nr_addition = nr_addition, nsims = nsims, seq_step = seq_step,
     lowest_point = lowest_point, total_ews = total_ews, ews_seq_step = ews_seq_step,
-    ews_logarithm = ews_logarithm, backward_only = backward_only
+    ews_logarithm = ews_logarithm, backward_only = backward_only,
+    cut_first_window = cut_first_window
   )
   
   pn <- create_illustration(
@@ -220,7 +246,8 @@ combine_figures <- function(
     title = 'No second outbreak', ylab = '', ylab2 = '', xlab = 'Days', ylab_ews  = FALSE,
     colgray = colgray,  nr_addition = nr_addition, nsims = nsims, seq_step = seq_step,
     lowest_point = lowest_point, total_ews = total_ews, ews_seq_step = ews_seq_step,
-    ews_logarithm = ews_logarithm, backward_only = backward_only
+    ews_logarithm = ews_logarithm, backward_only = backward_only,
+    cut_first_window = cut_first_window
   )
   
   gA <- ggplotGrob(p$A + margin)
@@ -247,21 +274,23 @@ height <- 10 - 3/4
 ########################
 #### 200 Days constant
 ########################
-pdf('Figures/Figure-4.pdf', width = width, height = height)
+pdf('Figures/Figure-4a-raw.pdf', width = width, height = height)
 combine_figures(
   nsims = nsims, nr_constant = 200, nr_increase = 200, ws = 50, bw = 20,
   seq_step = 100, ews1_seq = seq(0, 200, 50), backward_only = TRUE,
-  ews_seq_step = 25, nr_addition = 350 - 150, total_ews = FALSE, ews_logarithm = FALSE
+  ews_seq_step = 25, nr_addition = 350 - 150, total_ews = FALSE, ews_logarithm = FALSE,
+  cut_first_window = TRUE
 )
 dev.off()
 
 ########################
 #### 50 Days constant
 ########################
-pdf('Figures/Figure-5.pdf', width = width, height = height)
+pdf('Figures/Figure-4b-raw.pdf', width = width, height = height)
 combine_figures(
   nsims = nsims, nr_constant = 50, nr_increase = 200, bw = 5,
   ws = 50, ews_seq_step = 25, ews1_seq = seq(0, 750, 250),
-  nr_addition = 150, total_ews = FALSE, ews_logarithm = FALSE
+  nr_addition = 150, total_ews = FALSE, ews_logarithm = FALSE,
+  cut_first_window = TRUE
 )
 dev.off()

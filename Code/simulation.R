@@ -3,6 +3,7 @@ cols <- brewer.pal(3, 'Set1')
 
 
 rho <- 1
+eta <- 2e-05
 sigma <- 1/5.2
 gamma <- 1/10
 eta_start <- 50
@@ -10,22 +11,21 @@ eta_start <- 50
 nr_decrease <- 25
 nr_constant <- c(25, 50, 100, 200)
 nr_increase <- seq(25, 200, 5)
-etas <- c(1e-4, 1e-5, 1e-6)
-
 
 if (!file.exists('Results/simulation-results-AUC.RDS')) {
   
   # Simulation study comparing second waves to no second waves scenarios (AUC)
-  registerDoParallel(cores = 10)
+  registerDoParallel(cores = 9)
   res_auc <- simulate_ews(
     eta = eta,
-    bw = 'dynamic', ws = 50, type = 'uniform',
+    bw = 'dynamic', ws = 25, type = 'uniform',
     lowest_point = 0.50,
     nr_decrease = nr_decrease,
     nr_constant = nr_constant,
     nr_increase = nr_increase,
     eta_start = 50,
-    nsims = 500, detrending = TRUE
+    nsims = 500, detrending = TRUE,
+    cut_first_window = TRUE
   )
   
   saveRDS(res_auc, 'Results/simulation-results-AUC.RDS')
@@ -39,21 +39,18 @@ if (!file.exists('Results/simulation-results-AUC.RDS')) {
 if (!file.exists('Results/simulation-results-TPR.RDS')) {
   
   # Simulation study using only second wave scenarios (ARMA / true positive rate)
-  nr_decrease <- 25
-  nr_constant <- c(25, 50, 100, 200)
-  nr_increase <- seq(25, 100, 5)
-  
-  registerDoParallel(cores = 10)
-  res_arma <- simulate_ews(
+  registerDoParallel(cores = 9)
+  res_tpr <- simulate_ews(
     eta = eta,
-    bw = 'dynamic', ws = 50, type = 'uniform',
+    bw = 'dynamic', ws = 25, type = 'uniform',
     lowest_point = 0.50,
     nr_decrease = nr_decrease,
     nr_constant = nr_constant,
     nr_increase = nr_increase,
     eta_start = 50,
     nsims = 250, detrending = TRUE,
-    nr_surrogates = 500, fit_ARMA = TRUE
+    nr_surrogates = 500, fit_ARMA = TRUE,
+    cut_first_window = TRUE
   )
   
   saveRDS(res_tpr, 'Results/simulation-results-TPR.RDS')
@@ -101,12 +98,12 @@ colss <- c(rev(gg), 'white', cc)
 
 # Create AUC figure
 pauc <- create_AUC_plot(
-  auc, legend = TRUE, ytext_size = 12, ylab = '', title = 'Area under the Curve',
+  na.omit(auc), legend = TRUE, ytext_size = 12, ylab = '', title = 'Area under the Curve',
   colpallete = pals2
-) + scale_x_discrete(breaks = seq(25, 200, 25))
+) + scale_x_discrete(breaks = c(30, seq(50, 200, 25)))
 
 
-pdf('Figures/Figure-6.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-5a-raw.pdf', width = 8-1/4, height = 11-3/4)
 pauc
 dev.off()
 
@@ -115,8 +112,8 @@ dev.off()
 ptpr <- create_AUC_plot(
   tpr, legend = TRUE, ytext_size = 12, ylab = '', title = 'True positive rate',
   legend_name = 'TPR', colpallete = pals2
-) + scale_x_discrete(breaks = seq(25, 100, 25))
+) + scale_x_discrete(breaks = c(30, seq(50, 200, 25)))
 
-pdf('Figures/Figure-7.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-5b-raw.pdf', width = 8-1/4, height = 11-3/4)
 ptpr
 dev.off()

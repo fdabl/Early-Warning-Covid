@@ -17,12 +17,17 @@ if (!file.exists('Data/European-Rt-Data.RDS')) {
 }
 
          
-# Estimate early warning indicators across bandwidths (i.e., detrending rolling window size)
-# and estimation rolling window sizes
-registerDoParallel(cores = 10)
+# Estimate early warning indicators across bandwidths
+# (i.e., detrending rolling window size, \delta_1)
+# and estimation rolling window sizes (\delta_2)
+registerDoParallel(cores = 7)
 bw <- seq(2, 20, 2)
-ws <- seq(5, 50, 5)
-df_ews <- get_early_warning(df, ws, bw, nr_surrogates = 500, backward_only = TRUE)
+ws <- seq(2, 30, 1)
+
+start <- Sys.time()
+df_ews <- get_early_warning(df, ws, bw, nr_surrogates = 500, backward_only = TRUE, cut_first_window = TRUE)
+end <- Sys.time()
+print(end - start)
 
 # Save results
 write.csv(df_ews, 'Results/ews-results.csv', row.names = FALSE)
@@ -36,7 +41,7 @@ dc <- df %>%
     country
   ) %>% 
   mutate(
-    Rlen = second_max_ix - first_low_ix,
+    Rlen = second_max_ix - first_low_ix + 1,
     Rmin = round(R_mean[first_low_ix], 2),
     Rmax = round(R_mean[second_max_ix], 2),
     Rforcing = round(Rmax - Rmin, 2)
@@ -47,7 +52,7 @@ dc <- df %>%
 
 df_ews <- read.csv('Results/ews-results.csv') %>%
   filter(
-    windowsize == 25, bandwidth == 4, backward_only == TRUE
+    windowsize == 15, bandwidth == 4, backward_only == TRUE
   ) %>% 
   select(-windowsize, -bandwidth) %>% 
   rename(country = country_name) %>% 

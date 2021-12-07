@@ -1,5 +1,6 @@
 library('pomp')
 library('grid')
+library('trend')
 library('dplyr')
 library('tidyr')
 library('spaero')
@@ -180,7 +181,7 @@ simulate_ews <- function(
   nr_constant, nr_increase,
   R0 = 3, eta_start = 50, eta = 1e-5, type = 'gaussian',
   nsims = 250, bw = 5, ws = 5, detrending = TRUE, fit_ARMA = FALSE,
-  nr_surrogates = 250
+  nr_surrogates = 250, cut_first_window = FALSE
 ) {
   
   N <- 1e6
@@ -282,7 +283,7 @@ simulate_ews <- function(
         )
         
         if (!is.null(surrogates)) {
-          stats_ews <- make_inference(surrogates, ews, ws, bw)
+          stats_ews <- make_inference(surrogates, ews, ws, bw, cut_first_window)
         } else {
           stats_ews <- cbind(rep(NA, 10), rep(NA, 10), rep(NA, 10))
         }
@@ -297,14 +298,41 @@ simulate_ews <- function(
         kendalls <- rbind(kendalls, sews)
         
       } else {
+        
+        # AUC route
+        get_tau <- function(x) {
+          x <- na.omit(x) # Remove NAs and NaNs
+          x <- x[x != -Inf & x != Inf] # Remove -Inf for decay time
+          
+          if (length(x) < 3) {
+            return(NA)
+          } else {
+            mk.test(x)$estimates[3]
+          }
+        }
+        
+        shorten <- function(x) {
+          to_remove <- ws - 1
+          len <- length(x)
+          
+          # If there are enough data points left after
+          # removing the first rolling window, do it
+          # otherwise return a vector of NAs
+          if ((len - to_remove) >= 2) {
+            return(x[-seq(to_remove)])
+            
+          } else {
+            return(rep(NA, len))
+          }
+        }
+        
+        if (cut_first_window) {
+          ews <- lapply(ews, shorten)
+        }
       
         ix <- seq(length(ysel))
         
-        kendall <- sapply(names(ews), function(name) {
-          cur_ews <- ews[[name]]
-          cor(ix, cur_ews, method = 'kendall', use = 'pairwise.complete.obs')
-        })
-        
+        kendall <- sapply(ews, get_tau)
         kendalls <- rbind(kendalls, kendall)
         
       }
@@ -335,7 +363,7 @@ simulate_ews <- function(
     nr_increase = nr_increase
   )
   
-  null_results <- foreach(i = seq(nrow(grid_null)), .combine = 'rbind') %do% {
+  null_results <- foreach(i = seq(nrow(grid_null)), .combine = 'rbind') %dopar% {
     
     config_null <- grid_null[i, ]
     lo <- config_null$lowest_point
@@ -348,7 +376,7 @@ simulate_ews <- function(
     result
   }
   
-  test_results <- foreach (i = seq(nrow(grid)), .combine = 'rbind') %do% {
+  test_results <- foreach (i = seq(nrow(grid)), .combine = 'rbind') %dopar% {
     
     config <- grid[i, ]
     lo <- config$lowest_point
@@ -606,15 +634,39 @@ select_arima <- function(yprocessed) {
 #' @param surrogates surrogate time-series
 #' @param ws rolling window size
 #' @param bw bandwidth of centering
+#' @param cut_first_window remove estimates for y_i where i < ws
 #' 
 #' @returns bootstrapped pvalue and observed Kendall's tau
-make_inference <- function(surrogates, ews, ws, bw,...) {
+make_inference <- function(surrogates, ews, ws, bw, cut_first_window, ...) {
   
   get_tau <- function(x) {
     x <- na.omit(x) # Remove NAs and NaNs
     x <- x[x != -Inf & x != Inf] # Remove -Inf for decay time
     
-    mk.test(x)$estimates[3]
+    if (length(x) < 3) {
+      return(NA)
+    } else {
+      mk.test(x)$estimates[3]
+    }
+  }
+  
+  shorten <- function(x) {
+    to_remove <- ws - 1
+    len <- length(x)
+    
+    # If there are enought data points left after
+    # removing the first rolling window, do it
+    # otherwise return a vector of NAs
+    if ((len - to_remove) >= 2) {
+      return(x[-seq(to_remove)])
+      
+    } else {
+      return(rep(NA, len))
+    }
+  }
+  
+  if (cut_first_window) {
+    ews <- lapply(ews, shorten)
   }
   
   taus <- sapply(ews, get_tau)
@@ -634,8 +686,12 @@ make_inference <- function(surrogates, ews, ws, bw,...) {
     )
     
     surr_ews <- surr_stats$stats
-    taus <- sapply(surr_ews, get_tau)
     
+    if (cut_first_window) {
+      surr_ews <- lapply(surr_ews, shorten)
+    }
+    
+    taus <- sapply(surr_ews, get_tau)
     taus
   })
   
@@ -810,9 +866,15 @@ plot_dat <- function(
 
 
 #' Calculate the early warning indicators from data
+#' cut_first_window = TRUE uses the Dakos et al. (2012) approach,
+#' that is, does not use the first few data points smaller than the
+#' rolling window to estimate the indicator (instead returns NA)
+#' cut_first_window = FALSE uses the Drake et al. approach which
+#' estimates the indicators also within the first rolling window
 get_early_warning <- function(
   dat, windowsizes, bandwidths,
-  nr_surrogates = 250, backward_only = TRUE
+  nr_surrogates = 250, backward_only = TRUE,
+  cut_first_window = FALSE
 ) {
   countries <- unique(dat$country)
   len <- length(countries)
@@ -840,7 +902,8 @@ get_early_warning <- function(
   } 
   
   
-  res <- foreach (i = seq(nrow(grid)), .combine = 'rbind') %do% {
+  res <- foreach (i = seq(nrow(grid)), .combine = 'rbind') %dopar% {
+  # for (i in seq(nrow(grid))) {
     
     config <- grid[i, ]
     country <- as.character(config$country)
@@ -885,12 +948,15 @@ get_early_warning <- function(
     )
     
     if (!is.null(surrogates)) {
-      stats_ews <- make_inference(surrogates, ews, ws, bw)
+      stats_ews <- make_inference(surrogates, ews, ws, bw, cut_first_window)
     } else {
       stats_ews <- cbind(rep(NA, 10), rep(NA, 10), rep(NA, 10))
     }
     
-    c(country, ws, bw, nr_arcoefs, nr_macoefs, arima_warning, stats_ews[, 1], stats_ews[, 2], stats_ews[, 3])
+    c(
+      country, ws, bw, nr_arcoefs, nr_macoefs, arima_warning,
+      stats_ews[, 1], stats_ews[, 2], stats_ews[, 3]
+    )
   }
   
   # Only a single row
@@ -914,5 +980,6 @@ get_early_warning <- function(
   df <- data.frame(res)
   df[, -1] <- apply(df[, -1], 2, as.numeric)
   df$backward_only <- backward_only
+  df$cut_first_window <- cut_first_window
   df
 }

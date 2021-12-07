@@ -39,7 +39,7 @@ gamma <- 1 / 10
 beta_par_t <- Rt * gamma
 eta_par_t <- c(rep(0, eta_start), rep(eta, length(times) - eta_start))
 
-set.seed(1)
+set.seed(5)
 sim <- create_SEIR(
   times, beta_par_t = beta_par_t, eta_par_t = eta_par_t,
   params = c(sigma = 1 / 5.2, gamma = gamma, eta = eta, rho = 1),
@@ -108,14 +108,16 @@ par(mar = c(5.1, 4.5, 0, 1.5))
 tt <- seq(ix_min, ix_max)
 y <- simres$reports[seq(ix_min, ix_max)]
 
+bw <- 4
+ws <- 15
 stats <- get_stats(
   y,
   center_trend = 'local_constant',
   center_kernel = 'uniform',
-  center_bandwidth = 3,
+  center_bandwidth = bw,
   stat_trend = 'local_constant',
   stat_kernel = 'uniform',
-  stat_bandwidth = 10,
+  stat_bandwidth = ws,
   backward_only = TRUE
 )
 
@@ -155,8 +157,8 @@ barplot(
   col = colcases, xaxs = 'i', yaxs = 'i',
   cex.lab = cex.lab, space = 0
 )
-v <- stats$stats$autocorrelation
 v <- stats$stats$variance
+v <- c(rep(NA, ws), v[-seq(ws)])
 aut <- (v - min(v, na.rm = TRUE)) / (max(v, na.rm = TRUE) - min(v, na.rm = TRUE))
 lines(aut * 20, lwd = 2, col = 'black')
 axis(1, cex.axis = cex.axis, labels = seq(ix_min, ix_max, 10), at = seq(ix_min, ix_max, 10) - 25)

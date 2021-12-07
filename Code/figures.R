@@ -47,6 +47,10 @@ p <- ggplot(dfa, aes(x = date, y = infections_mean)) +
     name = '',
     values = c('Reported cases' = 'gray76')
   ) +
+  scale_color_manual(
+    name = '',
+    values = c('Estimated cases' = 'black')
+  ) +
   ylab('Cases') +
   xlab('Date') +
   ggtitle('Reported and estimated COVID-19 cases in European Countries') +
@@ -62,8 +66,8 @@ dev.off()
 #### Figure 3 (Summary of EWS results) #####
 #############################################
 bw <- 4
-ws <- 25
-d <- read.csv('Results/ews-results.csv') %>% 
+ws <- 15
+d <- read.csv('Results/ews-results.csv') %>%
   filter(
     windowsize == ws, bandwidth == bw, backward_only == TRUE
   ) %>% 
@@ -106,6 +110,7 @@ pdf('Figures/Figure-3.pdf', width = 9-1/4, height = 9-3/4)
 psummary <- ggplot(
   dj, aes(x = factor(ews), y = tau, label = country_label)
 ) +
+  geom_segment(aes(x = 1, xend = 10, y = 0, yend = 0), linetype = 'dashed', color = 'gray76') +
   geom_jitter(position = position_jitter(seed = 1, width = 0.2), aes(color = color)) +
   geom_text_repel(
     position = position_jitter(seed = 1, width = 0.2),
@@ -126,7 +131,7 @@ dev.off()
 
 
 ####################################
-# Create plots for Appendix (A9-A12)
+# Create plots for Appendix (A06-A10)
 ####################################
 countries <- sort(unique(df$country))
 
@@ -230,29 +235,29 @@ rt_plots3 <- cbind(rt_plots5, rt_plots6)
 rt_plots4 <- cbind(rt_plots7, rt_plots8)
 rt_plots5 <- cbind(rt_plots7, rt_plots8)
 
-pdf('Figures/Figure-A08.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A06.pdf', width = 8-1/4, height = 11-3/4)
 grid::grid.newpage(); grid::grid.draw(rt_plots1)
 dev.off()
 
-pdf('Figures/Figure-A09.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A07.pdf', width = 8-1/4, height = 11-3/4)
 grid::grid.newpage(); grid::grid.draw(rt_plots2)
 dev.off()
 
-pdf('Figures/Figure-A10.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A08.pdf', width = 8-1/4, height = 11-3/4)
 grid::grid.newpage(); grid::grid.draw(rt_plots3)
 dev.off()
 
-pdf('Figures/Figure-A11.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A09.pdf', width = 8-1/4, height = 11-3/4)
 grid::grid.newpage(); grid::grid.draw(rt_plots4)
 dev.off()
 
-pdf('Figures/Figure-A12.pdf', width = 8-1/4, height = 8-3/4)
+pdf('Figures/Figure-A10.pdf', width = 8-1/4, height = 8-3/4)
 ggarrange(rbind(gA, gB), gC)
 dev.off()
 
 
 ####################################
-# Create plots for Appendix (A13-A22)
+# Create plots for Appendix (A11-A20)
 ####################################
 add_sensitivity <- function(p) {
   p +
@@ -268,6 +273,7 @@ add_sensitivity <- function(p) {
     xlab('Estimation window size') +
     ylab('Detrending window size') +
     facet_wrap(~ country_name, ncol = 4) +
+    scale_x_discrete(breaks = seq(5, 30, 5)) +
     guides(
       fill = guide_colorbar(
         title.position = 'top', title.hjust = 0.5,
@@ -300,44 +306,58 @@ ews <- df_ews %>%
     coefficient_of_variation_pvalue_censored = ifelse(coefficient_of_variation_pvalue > 0.25, 0.25, coefficient_of_variation_pvalue),
     decay_time_pvalue_censored = ifelse(decay_time_pvalue > 0.25, 0.25, decay_time_pvalue),
     
-    mean_pvalue_censored = ifelse(mean_pvalue > 0.25, 0.25, mean_pvalue_abs),
+    mean_pvalue_censored = ifelse(mean_pvalue > 0.25, 0.25, mean_pvalue),
     kurtosis_pvalue_censored = ifelse(kurtosis_pvalue > 0.25, 0.25, kurtosis_pvalue),
     skewness_pvalue_censored = ifelse(skewness_pvalue > 0.25, 0.25, skewness_pvalue),
     autocovariance_pvalue_censored = ifelse(autocovariance_pvalue > 0.25, 0.25, autocovariance_pvalue),
     index_of_dispersion_pvalue_censored = ifelse(index_of_dispersion_pvalue > 0.25, 0.25, index_of_dispersion_pvalue)
   )
 
-pdf('Figures/Figure-A13.pdf', width = 8-1/4, height = 11-3/4)
-p13 <- ggplot(ews, aes(x = factor(bandwidth), y = mean_pvalue_censored, color = mean_pvalue_censored)) +
+# The ARMA null models ignore the data within the indicator rolling window (\delta_2)
+# Therefore, the rolling window of the mean (\delta_1) needs to be matched to the
+# rolling window size of the indicator estimation (\delta_2)
+ews_mean <- df_ews %>% 
+  filter(windowsize == bandwidth) %>% 
+  mutate(mean_pvalue_censored = ifelse(mean_pvalue > 0.25, 0.25, mean_pvalue))
+
+# To be consistent with Figure 3, however, we visualize the
+# mean p-value across \delta_1 with \delta_2 = 15 fixed
+ews_mean <- filter(ews, windowsize == 15)
+
+# Remove the window sizes > 5
+ews <- filter(ews, windowsize >= 5)
+
+pdf('Figures/Figure-A11.pdf', width = 8-1/4, height = 11-3/4)
+p13 <- ggplot(ews_mean, aes(x = factor(bandwidth), y = mean_pvalue_censored, color = mean_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the mean')
 add_sensitivity(p13) + ylab(expression(p ~ 'value')) + xlab('Detrending window size') + ylim(c(0, 0.25))
 dev.off()
 
-pdf('Figures/Figure-A14.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A12.pdf', width = 8-1/4, height = 11-3/4)
 p14 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = variance_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the variance')
 add_sensitivity(p14)
 dev.off()
 
-pdf('Figures/Figure-A15.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A13.pdf', width = 8-1/4, height = 11-3/4)
 p15 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = coefficient_of_variation_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the coefficient of variation')
 add_sensitivity(p15)
 dev.off()
 
-pdf('Figures/Figure-A16.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A14.pdf', width = 8-1/4, height = 11-3/4)
 p16 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = index_of_dispersion_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the index of dispersion')
 add_sensitivity(p16)
 dev.off()
 
-pdf('Figures/Figure-A17.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A15.pdf', width = 8-1/4, height = 11-3/4)
 p17 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = autocovariance_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the autocovariance')
 add_sensitivity(p17)
 dev.off()
 
-pdf('Figures/Figure-A18.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A16.pdf', width = 8-1/4, height = 11-3/4)
 p18 <- ggplot(
   ews,
   aes(x = factor(windowsize), y = factor(bandwidth), fill = autocorrelation_pvalue_censored)
@@ -345,25 +365,25 @@ p18 <- ggplot(
 add_sensitivity(p18)
 dev.off()
 
-pdf('Figures/Figure-A19.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A17.pdf', width = 8-1/4, height = 11-3/4)
 p19 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = decay_time_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the decay time')
 add_sensitivity(p19)
 dev.off()
 
-pdf('Figures/Figure-A20.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A18.pdf', width = 8-1/4, height = 11-3/4)
 p20 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = skewness_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the skewness')
 add_sensitivity(p20)
 dev.off()
 
-pdf('Figures/Figure-A21.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A19.pdf', width = 8-1/4, height = 11-3/4)
 p21 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = kurtosis_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the kurtosis')
 add_sensitivity(p21)
 dev.off()
 
-pdf('Figures/Figure-A22.pdf', width = 8-1/4, height = 11-3/4)
+pdf('Figures/Figure-A20.pdf', width = 8-1/4, height = 11-3/4)
 p22 <- ggplot(ews, aes(x = factor(windowsize), y = factor(bandwidth), fill = variance_first_diff_pvalue_censored)) +
   ggtitle('Sensitivity analysis for the first difference in variance')
 add_sensitivity(p22)
