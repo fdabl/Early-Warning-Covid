@@ -1,5 +1,5 @@
 # Early Warning Signals of the Second COVID-19 Wave
-This repository contains code to reproduce all analyses and figures in Dablander, F., Heesterbeek, H., Borsboom, D., & Drake, J. M. ([2021](https://www.medrxiv.org/content/10.1101/2021.07.27.21261226v4)). Overlapping Time Scales Obscure Early Warning Signals of the Second COVID-19 Wave.
+This repository contains code to reproduce all analyses and figures in Dablander, F., Heesterbeek, H., Borsboom, D., & Drake, J. M. ([2022](https://royalsocietypublishing.org/doi/10.1098/rspb.2021.1809)). Overlapping Time Scales Obscure Early Warning Signals of the Second COVID-19 Wave. *Proceedings of the Royal Society B, 289*(1968), 20211809.
 
 This repository is structured as follows:
 
